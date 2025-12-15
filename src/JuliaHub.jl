@@ -38,6 +38,9 @@ include("jobs/logging-legacy.jl")
 include("packages.jl")
 include("projects.jl")
 
+# Include server-side platform module
+include("server/Server.jl")
+
 # JuliaHub.jl follows the convention that all private names are
 # prefixed with an underscore.
 function _find_public_names()
