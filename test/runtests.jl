@@ -201,7 +201,7 @@ end
             :JuliaHubConnectionError, :JuliaHubError,
             :JuliaHubException, :InvalidJuliaHubVersion,
             :Limit, :NodeSpec, :PackageApp, :PackageJob, :Unlimited,
-            :PermissionError, :script, :Secret, :UserApp,
+            :PermissionError, :script, :Secret, :Server, :UserApp,
             :application, :applications, :authenticate,
             :batchimage, :batchimages,
             :check_authentication, :current_authentication,
