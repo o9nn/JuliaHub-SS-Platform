@@ -6,8 +6,12 @@
 [![PkgEval][pkgeval-img]][pkgeval-url]
 [![][codecov-img]][codecov-url]
 
-A Julia client for the [JuliaHub platform][juliahub-com] APIs.
+A Julia client for the [JuliaHub platform][juliahub-com] APIs, with comprehensive server-side platform support.
 It allows you to programmatically interact with the platform to, for example, upload or download datasets, start jobs, and so on.
+
+This package now includes a complete server-side platform implementation for running your own JuliaHub instance.
+
+## Client-Side Usage
 
 The package is an open-source and available in the [Julia General registry](https://github.com/JuliaRegistries/General), and can simply be installed via the package manager.
 
@@ -39,6 +43,46 @@ JuliaHub.submit_job(
     """
 )
 ```
+
+## Server-Side Platform
+
+The package now includes a comprehensive server-side platform for running your own JuliaHub instance with all major features:
+
+- **Pluto and JuliaIDE Coding Environments** - Interactive computing
+- **Projects for Team Editing and Collaboration** - Multi-user collaboration
+- **Time Capsule for Reproducibility** - Environment snapshots
+- **CloudStation for HPC Infrastructure** - High-performance computing cluster management
+- **Package and Registry Management** - Julia package registry
+- **Dashboard App Development** - Web application hosting
+- **APIs and Notification Features** - REST APIs and notifications
+- **Static Code Analysis** - Code quality and security
+- **Traceability, Logs, Compliance** - Audit trails and compliance
+- **ChatGPT Simple Version** - AI-powered assistance
+- **Quarto Reports** - Report generation and management
+- **Integrations** - RStudio, GitLens, Windows Workstation
+
+### Quick Start - Server
+
+```julia
+using JuliaHub
+
+# Start the server
+config = JuliaHub.Server.ServerConfig(port=8080)
+state = JuliaHub.Server.start_server(config)
+
+# Create a coding environment
+env = JuliaHub.Server.create_coding_environment(:pluto, "user123", "/notebook.jl")
+
+# Create a team project
+project = JuliaHub.Server.create_team_project("My Project", "Description", "owner123")
+
+# Deploy a dashboard
+dashboard = JuliaHub.Server.deploy_dashboard("Analytics", "user123", "Genie")
+```
+
+See the [Server Platform Documentation](src/server/README.md) for comprehensive usage examples and API reference.
+
+## Documentation
 
 See [the documentation over at `help.juliahub.com`][docs-stable-url] for a more information on usage, guides, tutorials, and the reference manual.
 If you are curious about changes and updates that new version have brought, see the [CHANGELOG][docs-stable-changelog-url].
