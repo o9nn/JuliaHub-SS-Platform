@@ -417,4 +417,302 @@ using Dates
         
         JuliaHub.Server.stop_server()
     end
+    
+    # Phase 1: Core Infrastructure Tests
+    @testset "Storage Module" begin
+        # Test InMemoryStorage
+        storage = JuliaHub.Server.Storage.InMemoryStorage()
+        @test storage isa JuliaHub.Server.Storage.AbstractStorage
+        
+        # Test store and retrieve
+        JuliaHub.Server.Storage.store!(storage, "users", "user1", Dict("name" => "Alice", "email" => "alice@test.com"))
+        result = JuliaHub.Server.Storage.retrieve(storage, "users", "user1")
+        @test result["name"] == "Alice"
+        @test result["email"] == "alice@test.com"
+        
+        # Test retrieve non-existent
+        @test isnothing(JuliaHub.Server.Storage.retrieve(storage, "users", "nonexistent"))
+        
+        # Test update
+        JuliaHub.Server.Storage.store!(storage, "users", "user1", Dict("name" => "Alice Updated", "email" => "alice@test.com"))
+        updated = JuliaHub.Server.Storage.retrieve(storage, "users", "user1")
+        @test updated["name"] == "Alice Updated"
+        
+        # Test exists
+        @test JuliaHub.Server.Storage.exists(storage, "users", "user1") == true
+        @test JuliaHub.Server.Storage.exists(storage, "users", "nonexistent") == false
+        
+        # Test list_all
+        JuliaHub.Server.Storage.store!(storage, "users", "user2", Dict("name" => "Bob", "email" => "bob@test.com"))
+        all_users = JuliaHub.Server.Storage.list_all(storage, "users")
+        @test length(all_users) == 2
+        
+        # Test delete
+        @test JuliaHub.Server.Storage.delete!(storage, "users", "user1") == true
+        @test JuliaHub.Server.Storage.exists(storage, "users", "user1") == false
+        @test JuliaHub.Server.Storage.delete!(storage, "users", "user1") == false
+        
+        # Test count
+        @test JuliaHub.Server.Storage.count(storage, "users") == 1
+        
+        # Test clear
+        JuliaHub.Server.Storage.clear!(storage, "users")
+        @test JuliaHub.Server.Storage.count(storage, "users") == 0
+    end
+    
+    @testset "Configuration Module" begin
+        # Test default configuration
+        config = JuliaHub.Server.Configuration.default_config()
+        @test config isa JuliaHub.Server.Configuration.ServerConfiguration
+        @test config.environment == :development
+        @test config.http.port == 8080
+        @test config.database.backend == :sqlite
+        
+        # Test validation
+        @test JuliaHub.Server.Configuration.validate_config(config) == true
+        
+        # Test invalid configuration
+        invalid_config = JuliaHub.Server.Configuration.ServerConfiguration(
+            environment = "production",
+            storage_path = config.storage_path,
+            max_workers = config.max_workers,
+            metadata = config.metadata,
+            database = config.database,
+            http = JuliaHub.Server.Configuration.HTTPConfig(
+                host = config.http.host,
+                port = -1,  # Invalid port
+                enable_ssl = config.http.enable_ssl,
+                ssl_cert_path = config.http.ssl_cert_path,
+                ssl_key_path = config.http.ssl_key_path,
+                request_timeout_seconds = config.http.request_timeout_seconds,
+                max_request_size_mb = config.http.max_request_size_mb,
+                enable_cors = config.http.enable_cors,
+                cors_origins = config.http.cors_origins
+            ),
+            auth = config.auth,
+            cache = config.cache,
+            logging = config.logging
+        )
+        @test JuliaHub.Server.Configuration.validate_config(invalid_config) == false
+        
+        # Test environment variable override
+        ENV["JULIAHUB_HTTP_PORT"] = "9999"
+        config_with_env = JuliaHub.Server.Configuration.apply_env_overrides(JuliaHub.Server.Configuration.default_config())
+        @test config_with_env.http.port == 9999
+        delete!(ENV, "JULIAHUB_HTTP_PORT")
+    end
+    
+    @testset "Authentication Module" begin
+        # Reset auth state for clean test
+        empty!(JuliaHub.Server.Authentication.USERS)
+        empty!(JuliaHub.Server.Authentication.SESSIONS)
+        empty!(JuliaHub.Server.Authentication.API_KEYS)
+        
+        # Test user creation
+        user = JuliaHub.Server.Authentication.create_user(
+            "testuser", "test@example.com", "password123", role="user"
+        )
+        @test user isa JuliaHub.Server.Authentication.User
+        @test user.username == "testuser"
+        @test user.email == "test@example.com"
+        @test "user" in user.roles
+        @test user.is_active == true
+        
+        # Test password hashing
+        @test user.password_hash != "password123"
+        @test occursin(":", user.password_hash)  # salt:hash format
+        
+        # Test authenticate user
+        auth_user = JuliaHub.Server.Authentication.authenticate_user("testuser", "password123")
+        @test !isnothing(auth_user)
+        @test auth_user.id == user.id
+        
+        # Test wrong password
+        @test isnothing(JuliaHub.Server.Authentication.authenticate_user("testuser", "wrongpassword"))
+        
+        # Test wrong username
+        @test isnothing(JuliaHub.Server.Authentication.authenticate_user("nonexistent", "password123"))
+        
+        # Test session creation
+        session = JuliaHub.Server.Authentication.create_session(user.id)
+        @test session isa JuliaHub.Server.Authentication.Session
+        @test session.user_id == user.id
+        @test !session.is_revoked
+        
+        # Test session validation
+        retrieved_session = JuliaHub.Server.Authentication.get_session(session.token)
+        @test !isnothing(retrieved_session)
+        @test retrieved_session.id == session.id
+        
+        # Test session revocation
+        @test JuliaHub.Server.Authentication.revoke_session(session.token) == true
+        @test JuliaHub.Server.Authentication.get_session(session.token).is_revoked == true
+        
+        # Test JWT generation - pass the user object
+        jwt_token = JuliaHub.Server.Authentication.generate_jwt(user)
+        @test !isempty(jwt_token)
+        @test occursin(".", jwt_token)  # JWT format: header.payload.signature
+        
+        # Test JWT validation
+        payload = JuliaHub.Server.Authentication.validate_jwt(jwt_token)
+        @test !isnothing(payload)
+        @test payload["sub"] == user.id
+        @test "user" in payload["roles"]
+        
+        # Test API key generation
+        api_key_result = JuliaHub.Server.Authentication.create_api_key(
+            user.id, "test-key", ["read", "write"]
+        )
+        @test haskey(api_key_result, "full_key")
+        @test haskey(api_key_result, "api_key")
+        @test api_key_result["api_key"].name == "test-key"
+        @test "read" in api_key_result["api_key"].scopes
+        
+        # Test API key validation
+        validated = JuliaHub.Server.Authentication.validate_api_key(api_key_result["full_key"])
+        @test !isnothing(validated)
+        @test validated.user_id == user.id
+        
+        # Test RBAC permissions
+        @test JuliaHub.Server.Authentication.has_permission("admin", "users", "create") == true
+        @test JuliaHub.Server.Authentication.has_permission("viewer", "users", "create") == false
+        @test JuliaHub.Server.Authentication.has_permission("user", "projects", "read") == true
+        
+        # Test user update
+        updated = JuliaHub.Server.Authentication.update_user(user.id; email="newemail@example.com")
+        @test !isnothing(updated)
+        @test updated.email == "newemail@example.com"
+        
+        # Test get user
+        retrieved_user = JuliaHub.Server.Authentication.get_user(user.id)
+        @test !isnothing(retrieved_user)
+        @test retrieved_user.username == "testuser"
+        
+        # Test list users
+        users = JuliaHub.Server.Authentication.list_users()
+        @test length(users) >= 1
+        
+        # Test delete user
+        @test JuliaHub.Server.Authentication.delete_user(user.id) == true
+        @test isnothing(JuliaHub.Server.Authentication.get_user(user.id))
+    end
+    
+    @testset "HTTP Server Module" begin
+        # Test Router creation
+        router = JuliaHub.Server.HTTPServer.Router()
+        @test router isa JuliaHub.Server.HTTPServer.Router
+        @test isempty(router.routes)
+        
+        # Test route registration
+        JuliaHub.Server.HTTPServer.add_route!(router, "GET", "/test", req -> Dict("status" => "ok"))
+        @test length(router.routes) == 1
+        @test router.routes[1].method == "GET"
+        @test router.routes[1].path == "/test"
+        
+        # Test route matching
+        matched, params = JuliaHub.Server.HTTPServer.match_route(router, "GET", "/test")
+        @test !isnothing(matched)
+        @test matched.path == "/test"
+        @test isempty(params)
+        
+        # Test path parameter extraction
+        JuliaHub.Server.HTTPServer.add_route!(router, "GET", "/users/:id", req -> Dict("id" => req[:params]["id"]))
+        matched, params = JuliaHub.Server.HTTPServer.match_route(router, "GET", "/users/123")
+        @test !isnothing(matched)
+        @test params["id"] == "123"
+        
+        # Test nested path parameters
+        JuliaHub.Server.HTTPServer.add_route!(router, "GET", "/projects/:project_id/files/:file_id", 
+            req -> Dict("project" => req[:params]["project_id"]))
+        matched, params = JuliaHub.Server.HTTPServer.match_route(router, "GET", "/projects/p1/files/f2")
+        @test !isnothing(matched)
+        @test params["project_id"] == "p1"
+        @test params["file_id"] == "f2"
+        
+        # Test route not found
+        matched, params = JuliaHub.Server.HTTPServer.match_route(router, "GET", "/nonexistent")
+        @test isnothing(matched)
+        
+        # Test method not allowed
+        matched, params = JuliaHub.Server.HTTPServer.match_route(router, "POST", "/test")
+        @test isnothing(matched)
+        
+        # Test OpenAPI spec generation
+        spec = JuliaHub.Server.HTTPServer.generate_openapi_spec(router, "JuliaHub API", "1.0.0")
+        @test spec["openapi"] == "3.0.3"
+        @test spec["info"]["title"] == "JuliaHub API"
+        @test haskey(spec, "paths")
+        
+        # Test JSON response helper
+        json_response = JuliaHub.Server.HTTPServer.json_response(Dict("test" => true))
+        @test json_response isa HTTP.Response
+        @test json_response.status == 200
+        
+        # Test error response helper
+        error_response = JuliaHub.Server.HTTPServer.error_response("Not found", 404)
+        @test error_response.status == 404
+    end
+    
+    @testset "Routes Module" begin
+        router = JuliaHub.Server.HTTPServer.Router()
+        JuliaHub.Server.Routes.register_all_routes!(router)
+        
+        # Verify all expected routes are registered
+        @test length(router.routes) > 0
+        
+        # Find specific routes
+        routes_by_path = Dict(r.path => r for r in router.routes)
+        
+        # Health endpoints
+        @test haskey(routes_by_path, "/api/v1/health")
+        
+        # Auth endpoints
+        @test haskey(routes_by_path, "/api/v1/auth/login")
+        @test haskey(routes_by_path, "/api/v1/auth/register")
+        
+        # Project endpoints
+        @test haskey(routes_by_path, "/api/v1/projects")
+        @test haskey(routes_by_path, "/api/v1/projects/:id")
+        
+        # Environment endpoints
+        @test haskey(routes_by_path, "/api/v1/environments")
+        @test haskey(routes_by_path, "/api/v1/environments/:id")
+        
+        # Dashboard endpoints
+        @test haskey(routes_by_path, "/api/v1/dashboards")
+        @test haskey(routes_by_path, "/api/v1/dashboards/:id")
+    end
+    
+    @testset "Enhanced Server Initialization" begin
+        # Test server with new config options
+        config = JuliaHub.Server.ServerConfig(
+            host = "127.0.0.1",
+            port = 9999,
+            max_workers = 4,
+            storage_path = "/tmp/juliahub_phase1_test",
+            enable_storage = true,
+            db_backend = :sqlite,
+            jwt_secret = "test-secret-key",
+            jwt_expiry_hours = 12,
+            log_level = :debug,
+            enable_audit_log = true
+        )
+        
+        @test config.db_backend == :sqlite
+        @test config.jwt_secret == "test-secret-key"
+        @test config.jwt_expiry_hours == 12
+        @test config.log_level == :debug
+        @test config.enable_audit_log == true
+        
+        # Start server
+        state = JuliaHub.Server.start_server(config)
+        @test !isnothing(state)
+        @test haskey(state, "storage")
+        
+        # Stop server
+        @test JuliaHub.Server.stop_server() == true
+        
+        # Clean up test directory
+        rm("/tmp/juliahub_phase1_test", recursive=true, force=true)
+    end
 end

@@ -1,0 +1,97 @@
+# JuliaHub Server-Side Platform Configuration
+# This is an example configuration file. Copy to server.toml and customize.
+
+# Environment: development, staging, production
+environment = "development"
+
+# Storage path for server data
+storage_path = "./juliahub_storage"
+
+# Maximum number of worker processes
+max_workers = 10
+
+[database]
+# Database backend: sqlite, postgres
+backend = "sqlite"
+# Connection string (file path for SQLite, URL for PostgreSQL)
+connection_string = "juliahub.db"
+# Connection pool size
+pool_size = 10
+# Query timeout in seconds
+timeout_seconds = 30
+
+[http]
+# Server host
+host = "0.0.0.0"
+# Server port
+port = 8080
+# Enable SSL/TLS
+enable_ssl = false
+# SSL certificate path (required if enable_ssl = true)
+# ssl_cert_path = "/path/to/cert.pem"
+# SSL key path (required if enable_ssl = true)
+# ssl_key_path = "/path/to/key.pem"
+# Request timeout in seconds
+request_timeout_seconds = 30
+# Maximum request body size in MB
+max_request_size_mb = 100
+# Enable CORS
+enable_cors = true
+# Allowed CORS origins
+cors_origins = ["*"]
+
+[auth]
+# JWT secret key (REQUIRED for production - generate a secure random string)
+# For development, leave empty to use a default key (NOT SECURE)
+jwt_secret = ""
+# JWT token expiry in hours
+jwt_expiry_hours = 24
+# Enable API key authentication
+enable_api_keys = true
+# Enable OAuth2 authentication
+enable_oauth = false
+# OAuth providers (github, google, azure, etc.)
+oauth_providers = []
+# Minimum password length
+password_min_length = 8
+# Maximum failed login attempts before lockout
+max_login_attempts = 5
+# Account lockout duration in minutes
+lockout_duration_minutes = 30
+# Enable multi-factor authentication
+enable_mfa = false
+
+[cache]
+# Enable caching
+enabled = true
+# Cache backend: memory, redis
+backend = "memory"
+# Redis URL (if using redis backend)
+redis_url = ""
+# Default cache TTL in seconds
+default_ttl_seconds = 300
+# Maximum cache entries
+max_entries = 10000
+
+[logging]
+# Log level: debug, info, warn, error
+level = "info"
+# Log format: json, text
+format = "json"
+# Log output: stdout, file
+output = "stdout"
+# Log file path (if output = file)
+file_path = "logs/juliahub.log"
+# Maximum log file size in MB
+max_file_size_mb = 100
+# Maximum number of log files to keep
+max_files = 10
+# Enable audit logging
+enable_audit_log = true
+# Audit log file path
+audit_log_path = "logs/audit.log"
+
+# Additional metadata (custom configuration)
+[metadata]
+# Add any custom configuration here
+# example_key = "example_value"
