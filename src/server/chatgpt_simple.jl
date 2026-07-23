@@ -112,7 +112,7 @@ function clear_chat_session(service_id::String, session_id::String)
     isnothing(service) && error("ChatGPT service not found: $service_id")
     
     if haskey(service.sessions, session_id)
-        delete!(service.sessions, session_id)
+        Base.delete!(service.sessions, session_id)
         @info "Cleared chat session" service_id session_id
         return true
     end

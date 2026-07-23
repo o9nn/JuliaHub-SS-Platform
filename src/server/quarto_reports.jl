@@ -133,7 +133,7 @@ function delete_quarto_report(report_id::String)
     isnothing(state) && error("Server is not running")
     
     if haskey(state["quarto_reports"], report_id)
-        delete!(state["quarto_reports"], report_id)
+        Base.delete!(state["quarto_reports"], report_id)
         @info "Deleted Quarto report" report_id
         return true
     end

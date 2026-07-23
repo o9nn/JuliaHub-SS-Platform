@@ -16,6 +16,7 @@ export Route, Router, add_route!, handle_request
 export HTTPRequest, HTTPResponse
 export Middleware, use_middleware!
 export json_response, error_response, success_response
+export match_route, generate_openapi, generate_openapi_spec
 
 # ============================================================================
 # Types
@@ -99,14 +100,14 @@ const SERVER_TASK = Ref{Union{Nothing, Task}}(nothing)
 # ============================================================================
 
 """
-    json_response(data::Any; status::Int=200, headers::Dict{String, String}=Dict{String, String}()) -> HTTPResponse
+    json_response(data::Any; status::Int=200, headers::Dict{String, String}=Dict{String, String}()) -> HTTP.Response
 
 Create a JSON response.
 """
 function json_response(data::Any; status::Int=200, headers::Dict{String, String}=Dict{String, String}())
     headers["Content-Type"] = "application/json"
     body = JSON.json(data)
-    return HTTPResponse(status, headers, body)
+    return HTTP.Response(status, collect(headers), body)
 end
 
 """
@@ -265,7 +266,7 @@ function match_route(router::Router, method::String, path::String)
             end
         end
     end
-    return nothing
+    return (nothing, Dict{String, String}())
 end
 
 """
@@ -308,10 +309,16 @@ CORS middleware for cross-origin requests.
 function cors_middleware(req::HTTPRequest, next::Function)
     response = next(req)
     
-    # Add CORS headers
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
+    # Add CORS headers (handle both HTTP.Response and HTTPResponse)
+    if response isa HTTP.Response
+        push!(response.headers, "Access-Control-Allow-Origin" => "*")
+        push!(response.headers, "Access-Control-Allow-Methods" => "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+        push!(response.headers, "Access-Control-Allow-Headers" => "Content-Type, Authorization, X-API-Key")
+    else
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
+    end
     
     return response
 end
@@ -442,14 +449,12 @@ function handle_request(router::Router, request::HTTP.Request)
     
     # Find matching route
     result = match_route(router, request.method, path)
-    
-    if isnothing(result)
-        # No matching route
-        response = error_response("Not found: $(request.method) $path", 404; code="not_found")
-        return HTTP.Response(response.status, collect(response.headers), response.body)
-    end
-    
     route, params = result
+    
+    if isnothing(route)
+        # No matching route
+        return error_response("Not found: $(request.method) $path", 404; code="not_found")
+    end
     
     # Parse request
     parsed_request = parse_request(request, params)
@@ -478,8 +483,12 @@ function handle_request(router::Router, request::HTTP.Request)
     # Execute handler chain
     response = handler(parsed_request)
     
-    # Convert to HTTP.Response
-    return HTTP.Response(response.status, collect(response.headers), response.body)
+    # Convert to HTTP.Response if needed
+    if response isa HTTP.Response
+        return response
+    else
+        return HTTP.Response(response.status, collect(response.headers), response.body)
+    end
 end
 
 # ============================================================================
@@ -611,7 +620,7 @@ function generate_openapi(router::Router; title::String="JuliaHub API", version:
     end
     
     return Dict(
-        "openapi" => "3.0.0",
+        "openapi" => "3.0.3",
         "info" => Dict(
             "title" => title,
             "version" => version,
@@ -636,6 +645,15 @@ function generate_openapi(router::Router; title::String="JuliaHub API", version:
             )
         )
     )
+end
+
+"""
+    generate_openapi_spec(router::Router, title::String, version::String) -> Dict
+
+Generate OpenAPI specification from router (positional argument variant).
+"""
+function generate_openapi_spec(router::Router, title::String, version::String)
+    return generate_openapi(router; title=title, version=version)
 end
 
 end # module HTTPServer

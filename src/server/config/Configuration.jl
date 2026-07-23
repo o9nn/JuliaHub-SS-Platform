@@ -14,6 +14,9 @@ export ServerConfiguration, load_config, save_config, get_config_value, set_conf
 export validate_config, merge_configs, get_env_config, default_config, apply_env_overrides
 export DatabaseConfig, HTTPConfig, AuthConfig, CacheConfig, LoggingConfig
 
+# Allow String values to be used where Symbol is expected (e.g., environment field)
+Base.convert(::Type{Symbol}, s::AbstractString) = Symbol(s)
+
 """
     DatabaseConfig
 
@@ -342,9 +345,9 @@ function get_env_config()
     end
     
     # HTTP config
-    if haskey(ENV, "$(ENV_PREFIX)HTTP_HOST")
+    if haskey(ENV, "$(ENV_PREFIX)HTTP_HOST") || haskey(ENV, "$(ENV_PREFIX)HTTP_PORT") || haskey(ENV, "$(ENV_PREFIX)HTTP_SSL")
         config.http = HTTPConfig(
-            host = ENV["$(ENV_PREFIX)HTTP_HOST"],
+            host = get(ENV, "$(ENV_PREFIX)HTTP_HOST", config.http.host),
             port = parse(Int, get(ENV, "$(ENV_PREFIX)HTTP_PORT", string(config.http.port))),
             enable_ssl = parse(Bool, get(ENV, "$(ENV_PREFIX)HTTP_SSL", string(config.http.enable_ssl)))
         )
@@ -445,7 +448,7 @@ function validate_config(config::ServerConfiguration)
         push!(errors, "Max workers must be at least 1")
     end
     
-    return (isempty(errors), errors)
+    return isempty(errors)
 end
 
 """

@@ -6,6 +6,7 @@ API route definitions for JuliaHub server-side platform.
 module Routes
 
 using ..HTTPServer
+import ..HTTPServer: get!, post!, put!, patch!, delete!
 using JSON
 using Dates
 using UUIDs
@@ -208,22 +209,22 @@ function register_project_routes!(router::Router)
     post!(router, "/projects", create_project; auth_required=true, description="Create new project")
     
     # Get project
-    get!(router, "/projects/:project_id", get_project; auth_required=true, description="Get project details")
+    get!(router, "/projects/:id", get_project; auth_required=true, description="Get project details")
     
     # Update project
-    patch!(router, "/projects/:project_id", update_project; auth_required=true, description="Update project")
+    patch!(router, "/projects/:id", update_project; auth_required=true, description="Update project")
     
     # Delete project
-    delete!(router, "/projects/:project_id", delete_project; auth_required=true, description="Delete project")
+    delete!(router, "/projects/:id", delete_project; auth_required=true, description="Delete project")
     
     # Project members
-    get!(router, "/projects/:project_id/members", list_project_members; auth_required=true, description="List project members")
-    post!(router, "/projects/:project_id/members", add_project_member; auth_required=true, description="Add project member")
-    delete!(router, "/projects/:project_id/members/:user_id", remove_project_member; auth_required=true, description="Remove project member")
+    get!(router, "/projects/:id/members", list_project_members; auth_required=true, description="List project members")
+    post!(router, "/projects/:id/members", add_project_member; auth_required=true, description="Add project member")
+    delete!(router, "/projects/:id/members/:user_id", remove_project_member; auth_required=true, description="Remove project member")
     
     # Project files
-    get!(router, "/projects/:project_id/files", list_project_files; auth_required=true, description="List project files")
-    post!(router, "/projects/:project_id/files", upload_project_file; auth_required=true, description="Upload file to project")
+    get!(router, "/projects/:id/files", list_project_files; auth_required=true, description="List project files")
+    post!(router, "/projects/:id/files", upload_project_file; auth_required=true, description="Upload file to project")
 end
 
 function list_projects(req::HTTPRequest)
@@ -246,7 +247,7 @@ function create_project(req::HTTPRequest)
 end
 
 function get_project(req::HTTPRequest)
-    project_id = req.params["project_id"]
+    project_id = req.params["id"]
     return success_response(Dict(
         "project_id" => project_id,
         "name" => "Sample Project",
@@ -303,19 +304,19 @@ function register_environment_routes!(router::Router)
     post!(router, "/environments", create_environment; auth_required=true, description="Create coding environment")
     
     # Get environment
-    get!(router, "/environments/:env_id", get_environment; auth_required=true, description="Get environment details")
+    get!(router, "/environments/:id", get_environment; auth_required=true, description="Get environment details")
     
     # Start environment
-    post!(router, "/environments/:env_id/start", start_environment; auth_required=true, description="Start environment")
+    post!(router, "/environments/:id/start", start_environment; auth_required=true, description="Start environment")
     
     # Stop environment
-    post!(router, "/environments/:env_id/stop", stop_environment; auth_required=true, description="Stop environment")
+    post!(router, "/environments/:id/stop", stop_environment; auth_required=true, description="Stop environment")
     
     # Delete environment
-    delete!(router, "/environments/:env_id", delete_environment; auth_required=true, description="Delete environment")
+    delete!(router, "/environments/:id", delete_environment; auth_required=true, description="Delete environment")
     
     # Environment status
-    get!(router, "/environments/:env_id/status", get_environment_status; auth_required=true, description="Get environment status")
+    get!(router, "/environments/:id/status", get_environment_status; auth_required=true, description="Get environment status")
 end
 
 function list_environments(req::HTTPRequest)
@@ -336,7 +337,7 @@ function create_environment(req::HTTPRequest)
 end
 
 function get_environment(req::HTTPRequest)
-    env_id = req.params["env_id"]
+    env_id = req.params["id"]
     return success_response(Dict(
         "env_id" => env_id,
         "type" => "pluto",
@@ -549,19 +550,19 @@ function register_dashboard_routes!(router::Router)
     post!(router, "/dashboards", create_dashboard; auth_required=true, description="Create dashboard")
     
     # Get dashboard
-    get!(router, "/dashboards/:dashboard_id", get_dashboard; auth_required=true, description="Get dashboard")
+    get!(router, "/dashboards/:id", get_dashboard; auth_required=true, description="Get dashboard")
     
     # Update dashboard
-    patch!(router, "/dashboards/:dashboard_id", update_dashboard; auth_required=true, description="Update dashboard")
+    patch!(router, "/dashboards/:id", update_dashboard; auth_required=true, description="Update dashboard")
     
     # Delete dashboard
-    delete!(router, "/dashboards/:dashboard_id", delete_dashboard; auth_required=true, description="Delete dashboard")
+    delete!(router, "/dashboards/:id", delete_dashboard; auth_required=true, description="Delete dashboard")
     
     # Deploy dashboard
-    post!(router, "/dashboards/:dashboard_id/deploy", deploy_dashboard; auth_required=true, description="Deploy dashboard")
+    post!(router, "/dashboards/:id/deploy", deploy_dashboard; auth_required=true, description="Deploy dashboard")
     
     # Stop dashboard
-    post!(router, "/dashboards/:dashboard_id/stop", stop_dashboard; auth_required=true, description="Stop dashboard")
+    post!(router, "/dashboards/:id/stop", stop_dashboard; auth_required=true, description="Stop dashboard")
 end
 
 function list_dashboards(req::HTTPRequest)
@@ -582,7 +583,7 @@ function create_dashboard(req::HTTPRequest)
 end
 
 function get_dashboard(req::HTTPRequest)
-    dashboard_id = req.params["dashboard_id"]
+    dashboard_id = req.params["id"]
     return success_response(Dict(
         "dashboard_id" => dashboard_id,
         "name" => "Sample Dashboard",

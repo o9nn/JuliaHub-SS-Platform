@@ -227,7 +227,7 @@ function delete_integration(integration_id::String)
     isnothing(state) && error("Server is not running")
     
     if haskey(state["integrations"], integration_id)
-        delete!(state["integrations"], integration_id)
+        Base.delete!(state["integrations"], integration_id)
         @info "Deleted integration" integration_id
         return true
     end
