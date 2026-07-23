@@ -143,9 +143,9 @@ function get_analysis_summary(result_id::String)
     result = get(state["code_analysis_results"], result_id, nothing)
     isnothing(result) && error("Analysis result not found: $result_id")
     
-    errors = count(i -> i["severity"] == "error", result.issues)
-    warnings = count(i -> i["severity"] == "warning", result.issues)
-    info = count(i -> i["severity"] == "info", result.issues)
+    errors = Base.count(i -> i["severity"] == "error", result.issues)
+    warnings = Base.count(i -> i["severity"] == "warning", result.issues)
+    info = Base.count(i -> i["severity"] == "info", result.issues)
     
     return Dict(
         "total_issues" => length(result.issues),

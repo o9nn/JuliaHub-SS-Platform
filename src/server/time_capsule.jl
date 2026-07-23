@@ -104,7 +104,7 @@ function delete_time_capsule(capsule_id::String)
     isnothing(state) && error("Server is not running")
     
     if haskey(state["time_capsules"], capsule_id)
-        delete!(state["time_capsules"], capsule_id)
+        Base.delete!(state["time_capsules"], capsule_id)
         @info "Deleted Time Capsule" capsule_id
         return true
     end

@@ -121,7 +121,7 @@ function unregister_package(registry_id::String, package_name::String)
     isnothing(registry) && error("Package registry not found: $registry_id")
     
     if haskey(registry.packages, package_name)
-        delete!(registry.packages, package_name)
+        Base.delete!(registry.packages, package_name)
         @info "Unregistered package" registry_id package_name
         return true
     end

@@ -90,7 +90,7 @@ function stop_dashboard(dashboard_id::String)
     isnothing(state) && error("Server is not running")
     
     if haskey(state["dashboard_apps"], dashboard_id)
-        delete!(state["dashboard_apps"], dashboard_id)
+        Base.delete!(state["dashboard_apps"], dashboard_id)
         @info "Stopped dashboard app" dashboard_id
         return true
     end

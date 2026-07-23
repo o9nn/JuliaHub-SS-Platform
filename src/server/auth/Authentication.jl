@@ -14,7 +14,7 @@ using JSON
 
 export User, Session, APIKey, Role, Permission
 export create_user, authenticate_user, get_user, update_user, delete_user, list_users
-export create_session, validate_session, invalidate_session, refresh_session
+export create_session, validate_session, invalidate_session, refresh_session, get_session, revoke_session
 export create_api_key, validate_api_key, revoke_api_key, list_api_keys
 export generate_jwt, validate_jwt, decode_jwt
 export has_permission, check_permission, grant_permission, revoke_permission
@@ -86,6 +86,7 @@ mutable struct Session
     ip_address::String
     user_agent::String
     is_valid::Bool
+    is_revoked::Bool
 end
 
 """
@@ -99,7 +100,7 @@ mutable struct APIKey
     name::String
     key_hash::String
     prefix::String
-    permissions::Vector{String}
+    scopes::Vector{String}
     created_at::DateTime
     expires_at::Union{DateTime, Nothing}
     last_used::Union{DateTime, Nothing}
@@ -350,6 +351,7 @@ end
 
 """
     update_user(user_id::String, updates::Dict{String, Any}) -> Union{User, Nothing}
+    update_user(user_id::String; kwargs...) -> Union{User, Nothing}
 
 Update user properties.
 """
@@ -382,6 +384,11 @@ function update_user(user_id::String, updates::Dict{String, Any})
     user.updated_at = now()
     
     return user
+end
+
+function update_user(user_id::String; kwargs...)
+    updates = Dict{String, Any}(string(k) => v for (k, v) in kwargs)
+    return update_user(user_id, updates)
 end
 
 """
@@ -464,7 +471,8 @@ function create_session(user_id::String;
         now(),
         ip_address,
         user_agent,
-        true
+        true,
+        false
     )
     
     SESSIONS[session.id] = session
@@ -492,6 +500,36 @@ function validate_session(token::String)
     end
     
     return nothing
+end
+
+"""
+    get_session(token::String) -> Union{Session, Nothing}
+
+Get a session by token (without validating expiry).
+"""
+function get_session(token::String)
+    for session in values(SESSIONS)
+        if session.token == token
+            return session
+        end
+    end
+    return nothing
+end
+
+"""
+    revoke_session(token::String) -> Bool
+
+Revoke a session by token.
+"""
+function revoke_session(token::String)
+    session = get_session(token)
+    if !isnothing(session)
+        session.is_valid = false
+        session.is_revoked = true
+        @info "Revoked session" session.id
+        return true
+    end
+    return false
 end
 
 """
@@ -638,14 +676,12 @@ end
 # ============================================================================
 
 """
-    create_api_key(user_id::String, name::String; 
-                   permissions::Vector{String}=String[],
-                   expires_in_days::Union{Int, Nothing}=nothing) -> Tuple{APIKey, String}
+    create_api_key(user_id::String, name::String, scopes::Vector{String}=String[];
+                   expires_in_days::Union{Int, Nothing}=nothing) -> Dict{String, Any}
 
-Create a new API key. Returns (api_key, raw_key) where raw_key is the only time the key is visible.
+Create a new API key. Returns a Dict with "full_key" (the raw key, shown only once) and "api_key" (the APIKey object).
 """
-function create_api_key(user_id::String, name::String;
-                       permissions::Vector{String}=String[],
+function create_api_key(user_id::String, name::String, scopes::Vector{String}=String[];
                        expires_in_days::Union{Int, Nothing}=nothing)
     user = get_user(user_id)
     if isnothing(user)
@@ -663,7 +699,7 @@ function create_api_key(user_id::String, name::String;
         name,
         key_hash,
         prefix,
-        permissions,
+        scopes,
         now(),
         isnothing(expires_in_days) ? nothing : now() + Day(expires_in_days),
         nothing,
@@ -674,7 +710,7 @@ function create_api_key(user_id::String, name::String;
     
     @info "Created API key" user_id name api_key.id
     
-    return (api_key, raw_key)
+    return Dict{String, Any}("full_key" => raw_key, "api_key" => api_key)
 end
 
 """
@@ -747,6 +783,29 @@ function has_permission(user::User, permission::String)
     # Admin role has all permissions
     if "admin" in user.roles
         return true
+    end
+    
+    return false
+end
+
+"""
+    has_permission(role_name::String, resource::String, action::String) -> Bool
+
+Check if a role has permission to perform an action on a resource.
+"""
+function has_permission(role_name::String, resource::String, action::String)
+    role = get(ROLES, role_name, nothing)
+    if isnothing(role)
+        return false
+    end
+    
+    for perm_id in role.permissions
+        perm = get(PERMISSIONS, perm_id, nothing)
+        if !isnothing(perm) && perm.resource == resource
+            if action in perm.actions || "admin" in perm.actions
+                return true
+            end
+        end
     end
     
     return false

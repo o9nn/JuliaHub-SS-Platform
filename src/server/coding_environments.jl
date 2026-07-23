@@ -118,7 +118,7 @@ function stop_coding_environment(env_id::String)
     isnothing(state) && error("Server is not running")
     
     if haskey(state["coding_environments"], env_id)
-        delete!(state["coding_environments"], env_id)
+        Base.delete!(state["coding_environments"], env_id)
         @info "Stopped coding environment" env_id
         return true
     end

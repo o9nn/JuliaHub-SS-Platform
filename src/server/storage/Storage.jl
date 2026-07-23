@@ -12,7 +12,7 @@ using JSON
 
 export AbstractStorage, SQLiteStorage, InMemoryStorage
 export StorageConfig, create_storage, close_storage
-export store!, retrieve, delete!, list_all, exists, update!, query
+export store!, retrieve, list_all, exists, update!, query, clear!
 export with_transaction, migrate!
 
 """
@@ -211,6 +211,26 @@ end
 
 function exists(storage::InMemoryStorage, table::String, id::String)
     return haskey(storage.data, table) && haskey(storage.data[table], id)
+end
+
+function count(storage::InMemoryStorage, table::String)
+    if !haskey(storage.data, table)
+        return 0
+    end
+    return length(storage.data[table])
+end
+
+function clear!(storage::InMemoryStorage, table::String)
+    if haskey(storage.data, table)
+        empty!(storage.data[table])
+    end
+    # Clear related cache entries
+    for key in collect(keys(storage.cache))
+        if startswith(key, "$table:")
+            Base.delete!(storage.cache, key)
+        end
+    end
+    return true
 end
 
 function update!(storage::InMemoryStorage, table::String, id::String, updates::Dict{String, Any})
